@@ -10,11 +10,47 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { AppLink } from '../../components/app-link';
+import { ApiError } from '../../services/api-client';
+import { authApi } from '../../services/pharmacontrol-api';
 
 const logoPath = '/assets/img/logo1.png';
 
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+
+    try {
+      await authApi.login({ email, password });
+      window.history.pushState({}, '', '/dashboard');
+      window.dispatchEvent(new Event('app:navigate'));
+    } catch (loginError) {
+      if (import.meta.env.DEV) {
+        console.error('[Login error]', loginError);
+      }
+
+      if (loginError instanceof ApiError && loginError.status === 401) {
+        setError('Correo o contraseña incorrectos.');
+      } else if (loginError instanceof ApiError && loginError.status === 0) {
+        setError('No se pudo conectar con la API.');
+      } else if (loginError instanceof Error) {
+        setError(loginError.message);
+      } else {
+        setError('No fue posible iniciar sesión. Intenta nuevamente.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 text-ink">
@@ -47,13 +83,6 @@ export function LoginPage() {
               <TrustItem icon={<Smartphone size={20} />} text="Base visual consistente con la app móvil." />
             </div>
           </div>
-
-          <div className="relative z-10 rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
-            <p className="text-sm font-semibold text-blue-50">Siguiente integración</p>
-            <p className="mt-1 text-sm leading-6 text-blue-100">
-              Este formulario quedará conectado al endpoint de autenticación de tu API NestJS.
-            </p>
-          </div>
         </section>
 
         <section className="flex min-h-screen items-center justify-center px-5 py-8">
@@ -77,7 +106,7 @@ export function LoginPage() {
                 </p>
               </div>
 
-              <form className="space-y-5">
+              <form className="space-y-5" onSubmit={handleSubmit}>
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-700">Correo electrónico</span>
                   <div className="mt-1 flex items-center rounded-md border border-slate-300 bg-white px-3 focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100">
@@ -88,6 +117,7 @@ export function LoginPage() {
                       name="email"
                       placeholder="usuario@farmacia.com"
                       autoComplete="email"
+                      disabled={isSubmitting}
                       required
                     />
                   </div>
@@ -103,6 +133,7 @@ export function LoginPage() {
                       name="password"
                       placeholder="Tu contraseña"
                       autoComplete="current-password"
+                      disabled={isSubmitting}
                       required
                     />
                     <button
@@ -129,12 +160,19 @@ export function LoginPage() {
                   </a>
                 </div>
 
-                <AppLink
-                  to="/dashboard"
-                  className="block rounded-md bg-brand-600 px-4 py-3 text-center font-semibold text-white shadow-sm hover:bg-brand-700"
+                {error ? (
+                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                    {error}
+                  </p>
+                ) : null}
+
+                <button
+                  type="submit"
+                  className="block w-full rounded-md bg-brand-600 px-4 py-3 text-center font-semibold text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  disabled={isSubmitting}
                 >
-                  Entrar al dashboard
-                </AppLink>
+                  {isSubmitting ? 'Validando acceso...' : 'Entrar al dashboard'}
+                </button>
               </form>
             </div>
 

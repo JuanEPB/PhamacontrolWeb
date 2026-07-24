@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   Bell,
@@ -17,6 +17,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AppLink } from './app-link';
+import { getStoredUser, setStoredUser } from '../services/api-client';
+import { authApi, usersApi } from '../services/pharmacontrol-api';
+import type { Usuario } from '../types/api';
 
 type AdminShellProps = {
   children: ReactNode;
@@ -24,38 +27,86 @@ type AdminShellProps = {
   title: string;
 };
 
-const primaryNav = [
-  { label: 'Dashboard', path: '/dashboard', icon: Home },
-  { label: 'Inventario', path: '/inventory', icon: Boxes },
-  { label: 'Reportes', path: '/reports', icon: BarChart3 },
-  { label: 'Usuarios', path: '/Users', icon: Users },
-  { label: 'Pedidos', path: '/orders', icon: Truck },
-  { label: 'Proveedores', path: '/suppliers', icon: PackagePlus },
-  { label: 'Carrito', path: '/cart', icon: ShoppingCart },
+type NavItem = {
+  icon: LucideIcon;
+  label: string;
+  path: string;
+  roles: Usuario['rol'][];
+};
+
+const primaryNav: NavItem[] = [
+  { label: 'Dashboard', path: '/dashboard', icon: Home, roles: ['admin', 'usuario'] },
+  { label: 'Inventario', path: '/inventory', icon: Boxes, roles: ['admin'] },
+  { label: 'Reportes', path: '/reports', icon: BarChart3, roles: ['admin'] },
+  { label: 'Usuarios', path: '/Users', icon: Users, roles: ['admin'] },
+  { label: 'Pedidos', path: '/orders', icon: Truck, roles: ['admin'] },
+  { label: 'Proveedores', path: '/suppliers', icon: PackagePlus, roles: ['admin'] },
+  { label: 'Carrito', path: '/cart', icon: ShoppingCart, roles: ['admin', 'usuario'] },
 ];
 
-const secondaryNav = [{ label: 'Configuración', path: '/settings', icon: Settings }];
+const secondaryNav: NavItem[] = [
+  { label: 'Configuración', path: '/settings', icon: Settings, roles: ['admin'] },
+];
 
 export function AdminShell({ children, eyebrow = 'Panel administrativo', title }: AdminShellProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [user, setUser] = useState<Usuario | null>(() => getStoredUser<Usuario>());
   const currentPath = useCurrentPath();
+  const visiblePrimaryNav = useMemo(() => filterNavByRole(primaryNav, user?.rol), [user?.rol]);
+  const visibleSecondaryNav = useMemo(() => filterNavByRole(secondaryNav, user?.rol), [user?.rol]);
+  const userName = getUserDisplayName(user);
 
   useEffect(() => {
     setIsMobileOpen(false);
   }, [currentPath]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const userId = user.id;
+    let ignore = false;
+
+    async function loadUser() {
+      try {
+        const fullUser = await usersApi.getNameRole(userId);
+        const safeUser = toSafeUser(fullUser);
+        if (!ignore) {
+          setUser(safeUser);
+          setStoredUser(safeUser);
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('[Load user error]', error);
+        }
+      }
+    }
+
+    void loadUser();
+
+    return () => {
+      ignore = true;
+    };
+  }, [user?.id]);
+
   return (
     <div className="min-h-screen bg-slate-100 text-ink">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-slate-800 bg-slate-950 text-white lg:flex lg:flex-col">
-        <SidebarContent currentPath={currentPath} />
+        <SidebarContent
+          currentPath={currentPath}
+          primaryNav={visiblePrimaryNav}
+          secondaryNav={visibleSecondaryNav}
+          user={user}
+        />
       </aside>
 
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
         <div className="flex h-16 items-center justify-between px-4">
           <AppLink to="/dashboard" className="flex items-center gap-2">
             <span className="text-lg font-bold text-brand-700">Pharmacontrol</span>
-            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-bold text-brand-700">
-              Admin
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-bold capitalize text-brand-700">
+              {user?.rol ?? 'usuario'}
             </span>
           </AppLink>
           <button
@@ -70,7 +121,7 @@ export function AdminShell({ children, eyebrow = 'Panel administrativo', title }
         </div>
         {isMobileOpen ? (
           <div className="border-t border-slate-200 bg-slate-950 p-3 text-white">
-            <SidebarNav currentPath={currentPath} />
+            <SidebarNav currentPath={currentPath} primaryNav={visiblePrimaryNav} secondaryNav={visibleSecondaryNav} />
           </div>
         ) : null}
       </header>
@@ -94,7 +145,7 @@ export function AdminShell({ children, eyebrow = 'Panel administrativo', title }
                 type="button"
                 className="hidden items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-brand-600 hover:text-brand-700 sm:inline-flex"
               >
-                User
+                {userName}
                 <ChevronDown size={16} />
               </button>
             </div>
@@ -106,26 +157,41 @@ export function AdminShell({ children, eyebrow = 'Panel administrativo', title }
   );
 }
 
-function SidebarContent({ currentPath }: { currentPath: string }) {
+function SidebarContent({
+  currentPath,
+  primaryNav,
+  secondaryNav,
+  user,
+}: {
+  currentPath: string;
+  primaryNav: NavItem[];
+  secondaryNav: NavItem[];
+  user: Usuario | null;
+}) {
+  const userName = getUserDisplayName(user);
+  const initials = getUserInitials(user);
+
   return (
     <>
       <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
         <AppLink to="/dashboard" className="text-xl font-bold text-blue-100">
           Pharmacontrol
         </AppLink>
-        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-brand-700">Admin</span>
+        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold capitalize text-brand-700">
+          {user?.rol ?? 'usuario'}
+        </span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col px-3 py-5">
-        <SidebarNav currentPath={currentPath} />
+        <SidebarNav currentPath={currentPath} primaryNav={primaryNav} secondaryNav={secondaryNav} />
       </div>
       <div className="border-t border-slate-800 p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 font-bold text-white">
-            JP
+            {initials}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-white">User</p>
-            <p className="text-xs text-slate-400">Admin</p>
+            <p className="truncate text-sm font-bold text-white">{userName}</p>
+            <p className="text-xs capitalize text-slate-400">{user?.rol ?? 'usuario'}</p>
           </div>
         </div>
       </div>
@@ -133,7 +199,21 @@ function SidebarContent({ currentPath }: { currentPath: string }) {
   );
 }
 
-function SidebarNav({ currentPath }: { currentPath: string }) {
+function SidebarNav({
+  currentPath,
+  primaryNav,
+  secondaryNav,
+}: {
+  currentPath: string;
+  primaryNav: NavItem[];
+  secondaryNav: NavItem[];
+}) {
+  async function handleLogout() {
+    await authApi.logout();
+    window.history.replaceState({}, '', '/login');
+    window.dispatchEvent(new Event('app:navigate'));
+  }
+
   return (
     <nav className="flex min-h-0 flex-1 flex-col justify-between gap-6">
       <div className="space-y-1">
@@ -145,13 +225,14 @@ function SidebarNav({ currentPath }: { currentPath: string }) {
         {secondaryNav.map((item) => (
           <NavLink key={item.path} currentPath={currentPath} {...item} />
         ))}
-        <AppLink
-          to="/login"
-          className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold text-slate-300 hover:bg-slate-900 hover:text-white"
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm font-semibold text-slate-300 hover:bg-slate-900 hover:text-white"
         >
           <LogOut size={19} />
           Cerrar Sesión
-        </AppLink>
+        </button>
       </div>
     </nav>
   );
@@ -181,6 +262,43 @@ function NavLink({
       {label}
     </AppLink>
   );
+}
+
+function filterNavByRole(items: NavItem[], role: Usuario['rol'] | undefined) {
+  const resolvedRole = role ?? 'usuario';
+  return items.filter((item) => item.roles.includes(resolvedRole));
+}
+
+function toSafeUser(user: Usuario): Usuario {
+  return {
+    id: user.id,
+    nombre: user.nombre,
+    apellido: user.apellido,
+    email: user.email,
+    rol: user.rol,
+    farmacia_id: user.farmacia_id,
+    farmaciaId: user.farmaciaId,
+  };
+}
+
+function getUserDisplayName(user: Usuario | null) {
+  if (!user) {
+    return 'Usuario';
+  }
+
+  const fullName = `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim();
+  return fullName || user.email || 'Usuario';
+}
+
+function getUserInitials(user: Usuario | null) {
+  const displayName = getUserDisplayName(user);
+  const parts = displayName.split(/\s+/).filter(Boolean);
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 function useCurrentPath() {
