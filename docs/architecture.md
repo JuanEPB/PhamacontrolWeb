@@ -27,4 +27,5 @@ src/
 - Migrar por pantalla o feature, no por archivos sueltos inconexos.
 - Mantener contratos HTTP en `src/services`.
 - Usar `.env` local para variables publicas de Vite, como `VITE_API_URL`.
+- La API NestJS debe permitir CORS desde el origen del frontend local: `http://localhost:5173`.
 - Mantener tipos compartidos cerca de cada feature hasta que exista una necesidad real de extraerlos.
