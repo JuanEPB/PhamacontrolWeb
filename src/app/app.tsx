@@ -4,6 +4,8 @@ import { DashboardPage } from '../pages/dashboard/dashboard-page';
 import { HomePage } from '../pages/home/home-page';
 import { LoginPage } from '../pages/login/login-page';
 import { PlaceholderPage } from '../pages/admin/placeholder-page';
+import { getAccessToken, getStoredUser } from '../services/api-client';
+import type { Usuario } from '../types/api';
 
 const routes = {
   '/': HomePage,
@@ -62,9 +64,31 @@ const routes = {
 
 type RoutePath = keyof typeof routes;
 
+const publicRoutes: RoutePath[] = ['/', '/login'];
+const usuarioRoutes: RoutePath[] = ['/dashboard', '/cart'];
+
 function getRoutePath(): RoutePath {
   const path = window.location.pathname;
-  return path in routes ? (path as RoutePath) : '/';
+  const route = path in routes ? (path as RoutePath) : '/';
+  const token = getAccessToken();
+  const user = getStoredUser<Usuario>();
+
+  if (!publicRoutes.includes(route) && !token) {
+    window.history.replaceState({}, '', '/login');
+    return '/login';
+  }
+
+  if (route === '/login' && token) {
+    window.history.replaceState({}, '', '/dashboard');
+    return '/dashboard';
+  }
+
+  if (!publicRoutes.includes(route) && user?.rol === 'usuario' && !usuarioRoutes.includes(route)) {
+    window.history.replaceState({}, '', '/dashboard');
+    return '/dashboard';
+  }
+
+  return route;
 }
 
 export function App() {

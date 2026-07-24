@@ -30,12 +30,7 @@ export function DashboardPage() {
               ))}
             </div>
           </article>
-          <article className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold">Siguiente etapa</h2>
-            <p className="mt-3 leading-7 text-slate-600">
-              Aqui conectaremos autenticacion real, permisos y datos migrados desde Django.
-            </p>
-          </article>
+          
         </section>
     </AdminShell>
   );
