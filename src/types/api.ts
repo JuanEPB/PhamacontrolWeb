@@ -25,6 +25,19 @@ export type Medicamento = {
   categoria?: Categoria;
 };
 
+export type MedicamentosStats = {
+  total: number;
+  porCaducar: number;
+  caducados: number;
+  bajoStock: number;
+  porCategoria: Record<string, number>;
+};
+
+export type MedicamentosCaducidad = {
+  total: number;
+  medicamentos: Medicamento[];
+};
+
 export type UsuarioRol = 'admin' | 'usuario' | 'chatbot';
 
 export type Usuario = {
